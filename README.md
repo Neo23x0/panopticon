@@ -6,15 +6,7 @@ A YARA rule performance measurement tool
 
 It runs a YARA rule set against a set of samples an measures the duration of a set of cycles over that sample set. 
 
-The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 10). 
-
-## Prerequisites
-
-You need to find a good sample set that reflects best the use case in which you plan to use your YARA rules. 
-
-If you have no idea where to start use ReactOS and download the [Live CD](https://reactos.org/download/). Mount the ISO and copy the contents of the folder `./reactos` into the `./samples` sub folder of panopticon. 
-
-Plan which YARA rules you want to test. I've played around with sets of 10-100 rules. 
+The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 15). 
 
 ## Usage
 
@@ -36,6 +28,20 @@ optional arguments:
   -i iterations         Number of iterations (default: auto)
   -s seconds            Number of seconds to spend for each rule's measurement
 ```
+
+## Prerequisites
+
+You need to find a good sample set that reflects best the use case in which you plan to use your YARA rules. 
+
+If you have no idea where to start use ReactOS and download the [Live CD](https://reactos.org/download/). Mount the ISO and copy the contents of the folder `./reactos` into the `./samples` sub folder of panopticon. 
+
+Plan which YARA rules you want to test. I've played around with sets of 10-100 rules. 
+
+## Considerations 
+
+The measurements are influenced by the system load. If you run this on your Desktop system with many different running and active processes, the results can be distorted.
+
+The more seconds you give the measurements, the better are the results. 
 
 ## Getting Started 
 
@@ -79,3 +85,13 @@ Performance Score: 9.09 (1.84)
 [INFO ] Scanning sample set with rule: SUSP_Encoded_Casing_Modified_CMD
 Performance Score: 8.60 (1.35)
 ```
+
+## Improvements 
+
+I am sure that someone finds ways to improve the measurement process. (maybe by measuring the pure cpu time instead) 
+
+I consider this project as a proof of concept and good starting point for your own development. Consider it as an inspiration. 
+
+## Contact 
+
+Follow me on [twitter](https://twitter.com/cyb3rops).

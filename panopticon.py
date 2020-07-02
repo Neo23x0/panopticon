@@ -92,7 +92,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', help='Log file (default: panopticon.log)', metavar='logfile', default=r'panopticon.log')
     parser.add_argument('-i', help='Number of iterations (default: auto)', metavar='iterations')
     parser.add_argument('-s', help='Number of seconds to spend for each rule\'s measurement', metavar='seconds',
-                        default=10)
+                        default=15)
     args = parser.parse_args()
 
     # Logging
