@@ -67,9 +67,9 @@ def measure(rule, cycles, show_score=True, c_duration=0):
     if show_score:
         # If a calibration duration has been evaluated
         if c_duration > 0:
-            print("Performance Score: %.2f (%0.2f)" % (duration, (duration-c_duration)))
+            print("Duration: %.2f (%0.2f)" % (duration, (duration-c_duration)))
         else:
-            print("Performance Score: %.2f" % duration)
+            print("Duration: %.2f" % duration)
     return duration, count
 
 

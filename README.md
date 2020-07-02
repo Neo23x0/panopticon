@@ -69,21 +69,21 @@ A successful run shows a performance score for the calibration rule (here: 7.25)
 [INFO ] Running 12 cycles over the sample set
 [INFO ] Now the benchmarking begins ...
 [INFO ] Scanning sample set with rule: Calibration_Rule
-Performance Score: 7.25
+Duration: 7.25
 [INFO ] Scanning sample set with rule: HKTL_Meterpreter_inMemory
-Performance Score: 7.37 (0.12)
+Duration: 7.37 (0.12)
 [INFO ] Scanning sample set with rule: APT_MAL_RU_Zekapab_Malware_Jul20_1
-Performance Score: 7.90 (0.65)
+Duration: 7.90 (0.65)
 [INFO ] Scanning sample set with rule: SUSP_GIF_Anomalies
-Performance Score: 6.82 (-0.43)
+Duration: 6.82 (-0.43)
 [INFO ] Scanning sample set with rule: APT_MAL_Unknown_Agent_AUS_Campaign_Jul20_1
-Performance Score: 7.58 (0.33)
+Duration: 7.58 (0.33)
 [INFO ] Scanning sample set with rule: APT_MAL_PowerKatz_AUS_Campaign_Jul20_1
-Performance Score: 7.04 (-0.21)
+Duration: 7.04 (-0.21)
 [INFO ] Scanning sample set with rule: HKTL_PowerKatz_Jul20_1
-Performance Score: 9.09 (1.84)
+Duration: 9.09 (1.84)
 [INFO ] Scanning sample set with rule: SUSP_Encoded_Casing_Modified_CMD
-Performance Score: 8.60 (1.35)
+Duration: 8.60 (1.35)
 ```
 
 ## Improvements 
