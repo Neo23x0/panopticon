@@ -4,7 +4,7 @@ A YARA rule performance measurement tool
 
 ## What it does 
 
-It runs a YARA rule set against a set of samples an measures the duration of a set of cycles over that sample set. 
+It runs a YARA rule set against a set of samples and measures the duration of a set of cycles over that sample set. 
 
 The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 15). 
 
