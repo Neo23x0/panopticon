@@ -46,12 +46,13 @@ The more seconds you give the measurements, the better are the results.
 ## Getting Started 
 
 1. Clone this repo and cd to it `git clone https://github.com/Neo23x0/panopticon.git && cd panopticon`
-2. Place your samples into the `./samples` sub folder of panopticon (see section "Prerequisites" for help) 
-3. Start a measurement with `python3 panopticon.py -f your-yara-rule.set`
+2. Install the requirements `pip3 install -r requirements.txt`
+3. Place your samples into the `./samples` sub folder (see section "Prerequisites" for help on that matter) 
+4. Start a measurement with `python3 panopticon.py -f your-yara-rules.yar`
 
 ## Expected Output
 
-A successful run shows a performance score for the calibration rule (here: 7.25) and scores for all tested rules with their deviation from the calibration rule. 
+A successful run shows a test duration for the calibration rule (here: 7.25) and scores for all tested rules with their deviation from the calibration rule. 
 
 ```bash
 (python) fubar:panopticon florian$ python3 panopticon.py -f ~/signatures/new_rules.yar 
@@ -90,7 +91,7 @@ Duration: 8.60 (1.35)
 
 I am sure that someone finds ways to improve the measurement process. (maybe by measuring the pure cpu time instead) 
 
-I consider this project as a proof of concept and good starting point for your own development. Consider it as an inspiration. 
+I consider this project as a proof of concept and good starting point for your own development. 
 
 ## Contact 
 
