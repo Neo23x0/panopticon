@@ -1,0 +1,10 @@
+
+0.2.0 to 0.3.0
+
+- Rules are measured by how much they slow down a whole scan if they're added to 100+ rules in baseline.yar. This might happen due to bad "atom quality" as explained in yara/libyara/atoms.c
+- Increase accuracy by:
+-- Reading samples into RAM (to avoid OS calls to get them from the file system cache)
+-- Recommending using real time priority and processing bindung in Linux (needs root permissions)
+- Fast mode: Skip a rule on the first scan which is fast enough
+- Progress bar
+- Pass Thor/Loki environment variables to yara-python

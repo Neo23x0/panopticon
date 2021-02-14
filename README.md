@@ -13,7 +13,8 @@ The number of iterations over the sample set gets evaluated automatically by pro
 ```bash
 usage: panopticon.py [-h] [-f yara files [yara files ...]]
                      [-d yara files [yara files ...]] [-l logfile]
-                     [-i iterations] [-s seconds]
+                     [-i iterations] [-s seconds] [-c baseline_calib_times]
+                     [-m baseline_test_times] [-S] [-a A]
 
 YARA RULE PERFORMANCE TESTER
 
@@ -27,21 +28,41 @@ optional arguments:
   -l logfile            Log file (default: panopticon.log)
   -i iterations         Number of iterations (default: auto)
   -s seconds            Number of seconds to spend for each rule's measurement
+  -c baseline_calib_times
+                        How often to run the iterations on the calibration
+                        rule
+  -m baseline_test_times
+                        Number of normal runs to measure accuracy of
+                        calibration rule
+  -S                    Slow mode, don't skip rule on first quick scan
+  -a A                  Alert bonus in percent: Only alert rules which slow
+                        down scans by this much percent (+ measured
+                        inaccuracy)
+
 ```
 
 ## Prerequisites
 
-You need to find a good sample set that reflects best the use case in which you plan to use your YARA rules. 
-
-If you have no idea where to start use ReactOS and download the [Live CD](https://reactos.org/download/). Mount the ISO and copy the contents of the folder `./reactos` into the `./samples` sub folder of panopticon. 
-
-Plan which YARA rules you want to test. I've played around with sets of 10-100 rules. 
+You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, doc, txt, php, ...
 
 ## Considerations 
 
-The measurements are influenced by the system load. If you run this on your Desktop system with many different running and active processes, the results can be distorted.
+The measurements are influenced by the system load. If you run this on your Desktop system with many different running and active processes, the results can be distorted. 
 
-The more seconds you give the measurements, the better are the results. 
+The more seconds you give the measurements (parameter -s ), the better are the results. In fast mode (default) panopticon will stop measuring a rule, as soon as one scan was fast enough. So a high value here doesn't mean, that the whole test will take long, but it will give better results.
+
+Give the panopticon process maximum priority in the OS, e.g. "chrt -r 99 ./panopticon.py" (if your kernel has realtime extension) or "nice -n -20 ./panopticon.py" on Linux.
+
+### On Linux: Reserving a physical CPU core
+Follow instructions on https://unix.stackexchange.com/questions/326579/how-to-ensure-exclusive-cpu-availability-for-a-running-process to exclude all virtual cores of a physical core from the normal scheduler. See "core id" in the output of "cat /proc/cpuinfo", e.g. on a core i7 processors 3 and 7 share core id 3. After report start with:
+'''
+chrt -r 99 taskset -c 7 ./panopticon.py
+'''
+
+This command should show several kernel processes (square bracket) but only one in userland (no square brackets):
+'''
+ps -eo psr,command | tr -s " " | grep "^ [3|7]"
+'''
 
 ## Getting Started 
 
@@ -52,46 +73,55 @@ The more seconds you give the measurements, the better are the results.
 
 ## Expected Output
 
-A successful run shows a test duration for the calibration rule (here: 7.25) and scores for all tested rules with their deviation from the calibration rule. 
 
 ```bash
-(python) fubar:panopticon florian$ python3 panopticon.py -f ~/signatures/new_rules.yar 
     ___                      __  _              
    / _ \___ ____  ___  ___  / /_(_)______  ___  
   / ___/ _ `/ _ \/ _ \/ _ \/ __/ / __/ _ \/ _ \ 
  /_/   \_,_/_//_/\___/ .__/\__/_/\__/\___/_//_/ 
- by Florian Roth    /_/ v0.2.0                 
+ by Florian Roth    /_/ v0.3.0                 
+ and Arnim Rupp
  
  YARA Rule Performance Testing
-[INFO ] Processing /Users/neo/code/Workspace/signature-sources/new_rules.yar ...
-[INFO ] Parsed 7 rules from /Users/neo/code/Workspace/signature-sources/new_rules.yar
-[INFO ] Scanning sample set with rule: Calibration_Rule
-[INFO ] Auto-evaluation calculated that the defined 10 seconds per rule could be accomplished by 12 cycles per rule over the given sample set of 1437 samples
-[INFO ] Running 12 cycles over the sample set
-[INFO ] Now the benchmarking begins ...
-[INFO ] Scanning sample set with rule: Calibration_Rule
-Duration: 7.25
-[INFO ] Scanning sample set with rule: HKTL_Meterpreter_inMemory
-Duration: 7.37 (0.12)
-[INFO ] Scanning sample set with rule: APT_MAL_RU_Zekapab_Malware_Jul20_1
-Duration: 7.90 (0.65)
-[INFO ] Scanning sample set with rule: SUSP_GIF_Anomalies
-Duration: 6.82 (-0.43)
-[INFO ] Scanning sample set with rule: APT_MAL_Unknown_Agent_AUS_Campaign_Jul20_1
-Duration: 7.58 (0.33)
-[INFO ] Scanning sample set with rule: APT_MAL_PowerKatz_AUS_Campaign_Jul20_1
-Duration: 7.04 (-0.21)
-[INFO ] Scanning sample set with rule: HKTL_PowerKatz_Jul20_1
-Duration: 9.09 (1.84)
-[INFO ] Scanning sample set with rule: SUSP_Encoded_Casing_Modified_CMD
-Duration: 8.60 (1.35)
+[INFO   ] Starting measurement at: 2021-02-14 12:09:35
+[INFO   ] Number of calibration rules: 100
+[INFO   ] Processing test-rules.yar ...
+[INFO   ] Parsed 6 rules from test-rules.yar
+[INFO   ] Rule:  - best of 1 - duration: 0.0969 s
+[INFO   ] Auto-evaluation calculated that the defined 3 seconds per rule could be accomplished by 31 cycles per rule over the given sample set of 45 samples
+[INFO   ] Running 31 cycles over the sample set
+[INFO   ] Now the benchmarking begins ...
+[INFO   ] Running baseline measure 3 times with 31 cycles each to get a good average, droping the worst result
+[INFO   ] Rule: Baseline - best of 31 - duration: 0.0940 s
+[INFO   ] Rule: Baseline - best of 31 - duration: 0.0935 s
+[INFO   ] Rule: Baseline - best of 31 - duration: 0.0935 s
+[INFO   ] Calibrate average baseline duration: 0.09349751472473145
+[INFO   ] Running baseline measure 3 times with 31 cycles (dropping the worst) to measure inaccuracy
+[INFO   ] Rule: Baseline - best of 31 - duration: 0.0939 s
+[INFO   ] Rule: Baseline - best of 31 - duration: 0.0936 s
+[INFO   ] Rule: Baseline - best of 31 - duration: 0.0936 s
+[INFO   ] Min diff 0.089249968762517 % -- max diff 0 %
+[INFO   ] Setting warning diff to: 2.6441297745545915
+[INFO   ] Calibrations done, now checking the rules
+[INFO   ] Rule is fast enough, not measuring any further Embedded_EXE_Cloaking due to fast mode, diff 2.0181 % below alerting level: 2.6441 %
+[WARNING] Rule Methodology_Suspicious_Shortcut_LOLcommand slows down a search with 100 rules by 16.0362 % (Measured by best of 31 runs)
+[WARNING] Rule password_dump_TESTING slows down a search with 100 rules by 3.0184 % (Measured by best of 31 runs)
+[WARNING] Rule APT_Trojan_Win_REDFLARE_5 slows down a search with 100 rules by 9.8361 % (Measured by best of 31 runs)
+[INFO   ] Rule is fast enough, not measuring any further APT_CN_Taskmasters_TimeStompingTool_Nov19_1 due to fast mode, diff 0.7347 % below alerting level: 2.6441 %
+[INFO   ] Rule is fast enough, not measuring any further Hunting_Rule_ShikataGaNai due to fast mode, diff 2.4929 % below alerting level: 2.6441 %
+Processing rules... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
+Warnings            ━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━  50% 0:00:10
 ```
 
-## Improvements 
+## yara_mem_usage.py
 
-I am sure that someone finds ways to improve the measurement process. (maybe by measuring the pure cpu time instead) 
+yara_mem_usage.py is a small script which measures the difference in used memory before and after loading and compiling a .yar file using 2 different methods.
 
-I consider this project as a proof of concept and good starting point for your own development. 
+Example:
+```bash
+$ ./yara_mem_usage.py all.yar
+all.yar: psutil: 17,464 KB -- resource:  17,476 KB
+```
 
 ## Contact 
 
