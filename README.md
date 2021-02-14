@@ -55,14 +55,16 @@ Give the panopticon process maximum priority in the OS, e.g. "chrt -r 99 ./panop
 
 ### On Linux: Reserving a physical CPU core
 Follow instructions on https://unix.stackexchange.com/questions/326579/how-to-ensure-exclusive-cpu-availability-for-a-running-process to exclude all virtual cores of a physical core from the normal scheduler. See "core id" in the output of "cat /proc/cpuinfo", e.g. on a core i7 processors 3 and 7 share core id 3. After report start with:
-'''
+
+```bash
 chrt -r 99 taskset -c 7 ./panopticon.py
-'''
+```
 
 This command should show several kernel processes (square bracket) but only one in userland (no square brackets):
-'''
+
+```bash
 ps -eo psr,command | tr -s " " | grep "^ [3|7]"
-'''
+```
 
 ## Getting Started 
 
@@ -70,6 +72,14 @@ ps -eo psr,command | tr -s " " | grep "^ [3|7]"
 2. Install the requirements `pip3 install -r requirements.txt`
 3. Place your samples into the `./samples` sub folder (see section "Prerequisites" for help on that matter) 
 4. Start a measurement with `python3 panopticon.py -f your-yara-rules.yar`
+
+### Example
+
+Try the `test-rules.yar` that are included in this repository. 
+
+```bash
+python panopticon.py -f test-rules.yar
+```
 
 ## Expected Output
 
