@@ -43,7 +43,7 @@ optional arguments:
 
 ## Prerequisites
 
-You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, doc, txt, php, ...
+You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, doc, txt, php, ... This should not be malware or cause any matches because the processing of them would skew the results if some rules fire and some don't.
 
 ## Considerations 
 
@@ -91,7 +91,7 @@ ps -eo psr,command | tr -s " " | grep "^ [3|7]"
 [INFO   ] Auto-evaluation calculated that the defined 3 seconds per rule could be accomplished by 31 cycles per rule over the given sample set of 45 samples
 [INFO   ] Running 31 cycles over the sample set
 [INFO   ] Now the benchmarking begins ...
-[INFO   ] Running baseline measure 3 times with 31 cycles each to get a good average, droping the worst result
+[INFO   ] Running baseline measure 3 times with 31 cycles each to get a good average, dropping the worst result
 [INFO   ] Rule: Baseline - best of 31 - duration: 0.0940 s
 [INFO   ] Rule: Baseline - best of 31 - duration: 0.0935 s
 [INFO   ] Rule: Baseline - best of 31 - duration: 0.0935 s

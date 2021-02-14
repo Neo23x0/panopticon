@@ -24,6 +24,7 @@ import traceback
 import time
 from rich.progress import track
 from rich.progress import Progress
+from rich.console import Console
 import gc
 
 SAMPLE_SET = ['./samples']
@@ -61,8 +62,21 @@ for s in SAMPLE_SET:
                     fdata = fh.read()
                     samples.append(fdata)
 
+warnings_list =[]
+warning_rules_file = 'warning_rules.yar'
+warning_rules = open(warning_rules_file, 'w')
+warning_rules.write("// New panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
 
-def measure(rule, cycles, progress, show_score=True, c_duration=0, rule_name="", alert_diff=0):
+def log_warning_rich(msg, rule):
+    Log.warning(msg)
+    progress.console.print("[red]"+"[WARNING] "+"[/red]" + msg)
+    progress.update(task2, advance=1)
+    warnings_list.append(msg)
+    warning_rules.write("// " + msg + "\n")
+    warning_rules.write(rule)
+    warning_rules.write("\n")
+
+def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, rule_name="", alert_diff=0, single_rule=""):
     """
     Measure rule performance
     :param rule: the YARA rule to test
@@ -72,8 +86,6 @@ def measure(rule, cycles, progress, show_score=True, c_duration=0, rule_name="",
     :return duration: duration in seconds
     :return count: count of samples in the given samples folders
     """
-    yara_rule_string = rule
-
     try:
         y = yara.compile(source=yara_rule_string, externals={
                                     'filename': "",
@@ -132,10 +144,7 @@ def measure(rule, cycles, progress, show_score=True, c_duration=0, rule_name="",
 
     if c_duration and not rule_name == "Baseline":
         if diff_perc > alert_diff:
-            msg = ("Rule %s slows down a search with %d rules by %0.4f %% (Measured by best of %d runs)" % (rule_name, num_calib_rules, diff_perc , cycles ))
-            Log.warning(msg)
-            progress.console.print("[red]"+"[WARNING] "+"[/red]" + msg)
-            progress.update(task2, advance=1)
+            log_warning_rich("Rule %s slows down a search with %d rules by %0.4f %% (Measured by best of %d runs)" % (rule_name, num_calib_rules, diff_perc , cycles ), single_rule)
         else:
             if show_score:
                 progress.console.print("[INFO   ] Rule: %s - Best of %d - duration: %.4f s (%0.4f s, %0.4f %%)" % (rule_name, cycles, min_duration, (min_duration-c_duration), diff_perc ))
@@ -198,6 +207,7 @@ if __name__ == '__main__':
             for f in args.f[0]:
                 if not os.path.exists(f):
                     Log.error("[E] Error: input file '%s' doesn't exist" % f)
+                    sys.exit(1)
                 else:
                     input_files.append(f)
         # Directory list
@@ -205,6 +215,7 @@ if __name__ == '__main__':
             for d in args.d[0]:
                 if not os.path.exists(d):
                     Log.error("[E] Error: input directory '%s' doesn't exist" % d)
+                    sys.exit(1)
                 else:
                     for f in (os.listdir(d)):
                         if ".yar" in f:
@@ -224,7 +235,7 @@ if __name__ == '__main__':
             Log.error("Cannot find input file '%s'" % f)
             sys.exit(1)
         try:
-            Log.info("Processing %s ..." % f)
+            Log.info("Processing rules from %s ..." % f)
             p = plyara.Plyara()
             file_data = ""
             # Read file
@@ -241,11 +252,11 @@ if __name__ == '__main__':
             traceback.print_exc()
             sys.exit(1)
 
-    with Progress() as progress:
+    with Progress(transient=True) as progress:
         # Calibration
         if not args.i:
             # Evaluate an optimal amount of cycles if nothing has been set manually
-            calib_duration, sample_count, diff_perc = measure(CALIBRATION_RULE, 1, progress, show_score=False)
+            calib_duration, sample_count, diff_perc = measure(CALIBRATION_RULE, 1, progress, show_score=False, rule_name='Baseline')
             # One measurement should take 5 seconds
             auto_cycles = math.ceil(int(args.s) / calib_duration)
             cycles = auto_cycles
@@ -262,7 +273,7 @@ if __name__ == '__main__':
         baseline_calib_times = int(args.c)
         baseline_test_times = int(args.m)
 
-        Log.info("Running baseline measure " + str(baseline_calib_times) + " times with " + str(cycles) + " cycles each to get a good average, droping the worst result")
+        Log.info("Running baseline measure " + str(baseline_calib_times) + " times with " + str(cycles) + " cycles each to get a good average, dropping the worst result")
         crule_duration_total=0
         crule_duration_max=0
         for x in range(baseline_calib_times):
@@ -309,6 +320,7 @@ if __name__ == '__main__':
         slow_mode = args.S
 
         # avoid mixing up output of rich and logging to console, only log to file from here on
+        # yep, this mix of logging and rich is ugly
         Log.removeHandler(consoleHandler)
         msg ="Calibrations done, now checking the rules"
         Log.info(msg)
@@ -327,15 +339,22 @@ if __name__ == '__main__':
             yara_rule_string = plutils.rebuild_yara_rule(r)
             rule_name = r['rule_name']
             if len(yara_rule_string) > 20000:
-                msg =("Big rule: " + rule_name + " has " + str(len(yara_rule_string)) + " bytes")
-                Log.warning(msg)
-                progress.console.print("[red]" + msg + "[/red]")
-                progress.update(task2, advance=1)
+                log_warning_rich("Big rule: " + rule_name + " has " + str(len(yara_rule_string)) + " bytes", yara_rule_string)
 
             measure_rule = CALIBRATION_RULE + yara_rule_string
-            measure(measure_rule, cycles, progress, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff)
+            measure(measure_rule, cycles, progress, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff, single_rule=yara_rule_string)
             progress.update(task1, advance=1)
 
+    # rich console
+    console = Console()
+    console.print("")
+    console.print("----------------------------------------------------------------------------------------------------------------")
+    console.print("Done scanning " + str(rule_num) + " rules. Check the collected warnings below are look in " + args.l + " for \"WARNING\".")
+    console.print("All offending rules written to \"" + warning_rules_file + "\" (hint: useful for rechecking)")
+    for msg in warnings_list:
+        console.print("[red]"+"[WARNING] "+"[/red]" + msg)
 
-    Log.info("Done scanning " + str(rule_num) + " rules. Check panoptiocon.log for \"WARN\" to get a list of rules slowing down your scans.")
+    # reenable console logging because this should be on screen and in logfile
+    Log.addHandler(consoleHandler)
     Log.info("Ending measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
+    warning_rules.write("// End of panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
