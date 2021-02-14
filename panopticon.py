@@ -83,7 +83,7 @@ def measure(rule, cycles, progress, show_score=True, c_duration=0, rule_name="",
                                     'md5': "",
                                 })
     except Exception as e:
-        Log.error("Error compiling YARA rule '%s' : %s" % ( rule_name, e))
+        Log.error("Error compiling YARA rule '%s' : %s" % (rule_name, e))
         return 0,0,0
     #Log.info("Scanning sample set %d times with rule: %s" % (cycles, rule_name))
     min_duration=9999999999999999
@@ -104,7 +104,7 @@ def measure(rule, cycles, progress, show_score=True, c_duration=0, rule_name="",
                                     'md5': "",
                                 })
             except Exception as e:
-                Log.error("Error matching YARA rule '%s' : %s" % ( rule_name, e))
+                Log.error("Error matching YARA rule '%s' : %s" % (rule_name, e))
                 traceback.print_exc()
                 # TODO: sys.exit or not???
                 #sys.exit(1)
@@ -126,9 +126,6 @@ def measure(rule, cycles, progress, show_score=True, c_duration=0, rule_name="",
         if not slow_mode and diff_perc < alert_diff:
             progress.console.print("[INFO   ] Rule is fast enough, not measuring any further %s due to fast mode, diff %0.4f %% below alerting level: %0.4f %%" % (rule_name, diff_perc, alert_diff ))
             return 0,0,0
-
-
-
 
     if c_duration and not rule_name == "Baseline":
         if diff_perc > alert_diff:
@@ -209,6 +206,10 @@ if __name__ == '__main__':
                     for f in (os.listdir(d)):
                         if ".yar" in f:
                             input_files.append(os.path.join(d, f))
+    else:
+        # Provide at least an input file
+        Log.error("You should at least provide a YARA file (-f) or a folder with YARA rules (-d)")
+        sys.exit(1)
 
     # Calibration rule
     p = plyara.Plyara()
@@ -245,7 +246,7 @@ if __name__ == '__main__':
         # Calibration
         if not args.i:
             # Evaluate an optimal amount of cycles if nothing has been set manually
-            calib_duration, sample_count, diff_perc = measure(CALIBRATION_RULE, 1, progress, show_score=False)
+            calib_duration, sample_count, diff_perc = measure(CALIBRATION_RULE, 1, progress, show_score=False, rule_name='Baseline')
             # One measurement should take 5 seconds
             auto_cycles = math.ceil(int(args.s) / calib_duration)
             cycles = auto_cycles
