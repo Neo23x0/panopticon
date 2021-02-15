@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+
 # -*- coding: iso-8859-1 -*-
 # -*- coding: utf-8 -*-
 #
@@ -101,6 +102,8 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
     min_duration=9999999999999999
     max_duration=0
     diff_perc = 0
+    count_mega_slow = 0
+
     for _ in range(cycles):
         # do garbage collection to avoid that it happens during benchmarking
         gc.collect()
@@ -134,13 +137,16 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
         if c_duration > 0:
             diff_perc = ( (min_duration / c_duration -1)*100 )
 
-        # skip test if this scan fast too fast
+        # skip test if this scan was too fast
         if not slow_mode and diff_perc < alert_diff:
             progress.console.print("[INFO   ] Rule is fast enough, not measuring any further %s due to fast mode, diff %0.4f %% below alerting level: %0.4f %%" % (rule_name, diff_perc, alert_diff ))
             return 0,0,0
 
-
-
+        # stop test if this scan was mega slow for 10th time => warning because alert_diff is high enough
+        if not slow_mode and diff_perc > 2 * alert_diff:
+            count_mega_slow += 1
+        if count_mega_slow > 10:
+            break
 
     if c_duration and not rule_name == "Baseline":
         if diff_perc > alert_diff:
@@ -229,6 +235,7 @@ if __name__ == '__main__':
 
     # Loop over input files
     rules_list = []
+    rules_all = ""
     for f in input_files:
         # Parse YARA rules to Dictionary
         if not os.path.exists(f):
@@ -244,6 +251,8 @@ if __name__ == '__main__':
             # Skip files without rule
             if 'rule' not in file_data:
                 continue
+
+            rules_all += file_data
             rules_list += p.parse_string(file_data)
             Log.info("Parsed %d rules from %s" % (len(rules_list), f))
             # input_file_names.append(os.path.basename(f))
@@ -334,6 +343,11 @@ if __name__ == '__main__':
             warning_bar_num = rule_num
         task2 = progress.add_task("[red]Warnings", total=warning_bar_num)
 
+        # first test all at once (this might easily fail on multiple files with duplicate rulenames)
+        measure_rule = CALIBRATION_RULE + rules_all
+        rule_name = "All " + str(len(rules_list)) + " rules from all input files"
+        measure(measure_rule, cycles, progress, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff)
+
         # Scan files
         for r in rules_list:
             yara_rule_string = plutils.rebuild_yara_rule(r)
@@ -349,10 +363,14 @@ if __name__ == '__main__':
     console = Console()
     console.print("")
     console.print("----------------------------------------------------------------------------------------------------------------")
-    console.print("Done scanning " + str(rule_num) + " rules. Check the collected warnings below are look in " + args.l + " for \"WARNING\".")
-    console.print("All offending rules written to \"" + warning_rules_file + "\" (hint: useful for rechecking)")
-    for msg in warnings_list:
-        console.print("[red]"+"[WARNING] "+"[/red]" + msg)
+    console.print("Done scanning " + str(rule_num) + " rules.")
+    if warnings_list:
+        console.print("Check the collected warnings below are look in " + args.l + " for \"WARNING\".")
+        console.print("All offending rules written to \"" + warning_rules_file + "\" (hint: useful for rechecking)")
+        for msg in warnings_list:
+            console.print("[red]"+"[WARNING] "+"[/red]" + msg)
+    else:
+        console.print("Everything [green]ok[/green], log written to " + args.l)
 
     # reenable console logging because this should be on screen and in logfile
     Log.addHandler(consoleHandler)

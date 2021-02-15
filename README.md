@@ -6,7 +6,9 @@ A YARA rule performance measurement tool
 
 It runs a YARA rule set against a set of samples and measures the duration of a set of cycles over that sample set. 
 
-The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 15). 
+Bad rules are the ones with bad atom quality as explained in [YARA Performance Guidelines](https://gist.github.com/Neo23x0/e3d4e316d7441d9143c7). They slow down the whole search as more data needs to be evaluated by the YARA engine. YARA complains by itself about some rules slowing down the search, e.g. if they contain a regex with .* but [^a]* isn't alerted but equally bad.
+
+The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 30). 
 
 ## Usage
 
@@ -43,7 +45,9 @@ optional arguments:
 
 ## Prerequisites
 
-You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, doc, txt, php, ... This should not be malware or cause any matches because the processing of them would skew the results if some rules fire and some don't.
+You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, elf, doc, txt, php, ... This should not be malware or cause any matches because the processing of them would skew the results if some rules fire and some don't.
+
+The baseline.yar should contain at least 50 rules to prevent single rules with lots of strings to cause a relative slowdown of the scanning. 
 
 ## Considerations 
 
