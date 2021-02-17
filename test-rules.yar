@@ -27,6 +27,42 @@ rule Embedded_EXE_Cloaking {
 		for any i in (1..#mz): ( @a1 < ( @mz[i] + 200 ) or @a2 < ( @mz[i] + 200 ) )
 }
 
+rule Methodology_Suspicious_Shortcut_LOLcommand
+{
+  meta:
+    author = "@itsreallynick (Nick Carr)"
+    reference = "https://twitter.com/ItsReallyNick/status/1176601500069576704"
+    description = "Detects possible shortcut usage for .URL persistence"
+    score = 50
+    date = "27.09.2019"
+    modified = "2021-02-14"
+  strings:
+    $file1 = /[\x0a\x0d](IconFile|(Base|)URL)\s*=[^\x0d]*(powershell|cmd|certutil|mshta|wscript|cscript|rundll32|wmic|regsvr32|msbuild)(\.exe|)[^\x0d]{2,50}\x0d/ nocase
+    $url_clsid = "[{000214A0-0000-0000-C000-000000000046}]"
+    $url_explicit = "[InternetShortcut]" nocase
+  condition:
+    any of ($url*) and any of ($file*)
+    and uint16(0) != 0x5A4D and uint32(0) != 0x464c457f and uint32(0) != 0xBEBAFECA and uint32(0) != 0xFEEDFACE and uint32(0) != 0xFEEDFACF and uint32(0) != 0xCEFAEDFE
+    and filesize < 30KB
+}
+
+rule APT_Trojan_Win_REDFLARE_5
+{
+    meta:
+        date = "2020-12-01"
+        modified = "2020-12-01"
+        md5 = "dfbb1b988c239ade4c23856e42d4127b, 3322fba40c4de7e3de0fda1123b0bf5d"
+        reference = "https://www.fireeye.com/blog/products-and-services/2020/12/fireeye-shares-details-of-recent-cyber-attack-actions-to-protect-community.html"
+        author = "FireEye"
+    strings:
+        $s1 = "AdjustTokenPrivileges" fullword
+        $s2 = "LookupPrivilegeValueW" fullword
+        $s3 = "ImpersonateLoggedOnUser" fullword
+        $s4 = "runCommand" fullword
+        $steal_token = { FF 15 [4] 85 C0 [1-40] C7 44 24 ?? 01 00 00 00 [0-20] C7 44 24 ?? 02 00 00 00 [0-20] FF 15 [4] FF [1-5] 85 C0 [4-40] 00 04 00 00 FF 15 [4-5] 85 C0 [2-20] ( BA 0F 00 00 00 | 6A 0F ) [1-4] FF 15 [4] 85 C0 74 [1-20] FF 15 [4] 85 C0 74 [1-20] ( 6A 0B | B9 0B 00 00 00 ) E8 }
+    condition:
+        (uint16(0) == 0x5A4D) and (uint32(uint32(0x3C)) == 0x00004550) and all of them
+}
 
 rule password_dump_TESTING {
 	meta:
@@ -41,7 +77,7 @@ rule password_dump_TESTING {
 		filesize < 400 and $pwdump at 0 or $pwdump_nolm at 0
 }
 
-rule APT_CN_Taskmasters_TimeStompingTool_Nov19_1 {
+rule TEST_String_Short {
    meta:
       description = "Detects Taskmasters tool"
       author = "Florian Roth"
@@ -49,12 +85,23 @@ rule APT_CN_Taskmasters_TimeStompingTool_Nov19_1 {
       date = "2019-11-11"
    strings:
       $s1 = "Created  Date: " fullword
-      $s2 = "Modified Date: " fullword
-      $s3 = "Accessed Date: " fullword
-      $s4 = "Success!" fullword ascii
-      $s5 = "-show" fullword ascii
+      $s4 = "IEX" fullword ascii
    condition:
-      uint16(0) == 0x5a4d and filesize <= 280KB and all of them
+      all of them
+}
+
+
+rule TEST_Regex_Short {
+   meta:
+      description = "Detects Taskmasters tool"
+      author = "Florian Roth"
+      reference = "https://www.youtube.com/watch?v=XYuclHsoQO4&feature=youtu.be"
+      date = "2019-11-11"
+   strings:
+      $s1 = "[A-Z]{40}" fullword
+      $sr1 = /CE[\x0d]+/ nocase
+   condition:
+      all of them
 }
 
 rule Hunting_Rule_ShikataGaNai {

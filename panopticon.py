@@ -96,7 +96,7 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
                                     'md5': "",
                                 })
     except Exception as e:
-        Log.error("Error compiling YARA rule '%s' : %s" % ( rule_name, e))
+        Log.error("Error compiling YARA rule '%s' : %s" % (rule_name, e))
         return 0,0,0
     #Log.info("Scanning sample set %d times with rule: %s" % (cycles, rule_name))
     min_duration=9999999999999999
@@ -119,7 +119,7 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
                                     'md5': "",
                                 })
             except Exception as e:
-                Log.error("Error matching YARA rule '%s' : %s" % ( rule_name, e))
+                Log.error("Error matching YARA rule '%s' : %s" % (rule_name, e))
                 traceback.print_exc()
                 # TODO: sys.exit or not???
                 #sys.exit(1)
@@ -226,6 +226,10 @@ if __name__ == '__main__':
                     for f in (os.listdir(d)):
                         if ".yar" in f:
                             input_files.append(os.path.join(d, f))
+    else:
+        # Provide at least an input file
+        Log.error("You should at least provide a YARA file (-f) or a folder with YARA rules (-d)")
+        sys.exit(1)
 
     # Calibration rule
     p = plyara.Plyara()
