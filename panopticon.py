@@ -53,7 +53,7 @@ rule_num=0
 count = 0
 for s in SAMPLE_SET:
     if not os.path.exists(s):
-        Log.error("[E] Error: sample directory '%s' doesn't exist" % s)
+        print("[E] Error: sample directory '%s' doesn't exist" % s)
     else:
         for (dirpath, dirnames, filenames) in os.walk(s):
             for filename in filenames:
