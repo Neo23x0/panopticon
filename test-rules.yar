@@ -98,7 +98,7 @@ rule TEST_Regex_Short {
       reference = "https://www.youtube.com/watch?v=XYuclHsoQO4&feature=youtu.be"
       date = "2019-11-11"
    strings:
-      $s1 = "[A-Z]{40}" fullword
+      $s1 = /[A-Z]{40}/
       $sr1 = /CE[\x0d]+/ nocase
    condition:
       all of them
