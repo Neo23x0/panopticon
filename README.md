@@ -6,7 +6,9 @@ A YARA rule performance measurement tool
 
 It runs a YARA rule set against a set of samples and measures the duration of a set of cycles over that sample set. 
 
-The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 15). 
+Bad rules are the ones with bad atom quality as explained in [YARA Performance Guidelines](https://gist.github.com/Neo23x0/e3d4e316d7441d9143c7). They slow down the whole search as more data needs to be evaluated by the YARA engine. YARA complains by itself about some rules slowing down the search, e.g. if they contain a regex with .* but [^a]* isn't alerted but equally bad.
+
+The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 30). 
 
 ## Usage
 
@@ -43,7 +45,9 @@ optional arguments:
 
 ## Prerequisites
 
-You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, doc, txt, php, ...
+You need to find/build a good sample set that reflects best the use case in which you plan to use your YARA rules. Copy about 10-100 MB of the usual files into the samples directory, e.g. some exe, elf, doc, txt, php, ... This should not be malware or cause any matches because the processing of them would skew the results if some rules fire and some don't.
+
+The baseline.yar should contain at least 50 rules to prevent single rules with lots of strings to cause a relative slowdown of the scanning. 
 
 ## Considerations 
 
@@ -101,7 +105,7 @@ python panopticon.py -f test-rules.yar
 [INFO   ] Auto-evaluation calculated that the defined 3 seconds per rule could be accomplished by 31 cycles per rule over the given sample set of 45 samples
 [INFO   ] Running 31 cycles over the sample set
 [INFO   ] Now the benchmarking begins ...
-[INFO   ] Running baseline measure 3 times with 31 cycles each to get a good average, droping the worst result
+[INFO   ] Running baseline measure 3 times with 31 cycles each to get a good average, dropping the worst result
 [INFO   ] Rule: Baseline - best of 31 - duration: 0.0940 s
 [INFO   ] Rule: Baseline - best of 31 - duration: 0.0935 s
 [INFO   ] Rule: Baseline - best of 31 - duration: 0.0935 s
