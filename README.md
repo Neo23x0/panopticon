@@ -6,7 +6,7 @@ A YARA rule performance measurement tool
 
 It runs a YARA rule set against a set of samples and measures the duration of a set of cycles over that sample set. 
 
-Bad rules are the ones with bad atom quality as explained in [YARA Performance Guidelines](https://gist.github.com/Neo23x0/e3d4e316d7441d9143c7). They slow down the whole search as more data needs to be evaluated by the YARA engine. YARA complains by itself about some rules slowing down the search, e.g. if they contain a regex with .* but [^a]* isn't alerted but equally bad.
+Bad rules are the ones with bad atom quality as explained in [YARA Performance Guidelines](https://github.com/Neo23x0/YARA-Performance-Guidelines/). They slow down the whole search as more data needs to be evaluated by the YARA engine. YARA complains by itself about some rules slowing down the search, e.g. if they contain a regex with .* but [^a]* isn't alerted but equally bad.
 
 The number of iterations over the sample set gets evaluated automatically by providing the number of seconds each rule should be tested against the sample set (default: 30). 
 
