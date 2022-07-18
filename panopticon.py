@@ -270,6 +270,10 @@ if __name__ == '__main__':
             auto_cycles = math.ceil(int(args.s) / calib_duration)
             cycles = auto_cycles
         else:
+            # When cycle setting(option -i), occur error "sample_count not setting error"
+            # set measure function same, error fix!
+            # Evaluate an optimal amount of cycles if nothing has been set manually
+            calib_duration, sample_count, diff_perc = measure(CALIBRATION_RULES, 1, progress, show_score=False, rule_name='Baseline')
             cycles = int(args.i)
 
         # Startup
