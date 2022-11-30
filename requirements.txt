@@ -1,4 +1,4 @@
-plyara~=2.0.3
+plyara>=2.1.0
 yara-python
 rich
 psutil

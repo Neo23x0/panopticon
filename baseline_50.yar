@@ -1,4 +1,5 @@
-import "math"
+
+// imports ^ will be prepeneded dynamically based on the imports found in the test rule set
 
 rule baseline_PowerShell_Case_Anomaly {
    meta:
