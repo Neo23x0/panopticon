@@ -6,7 +6,7 @@ import "hash"
    WARNING: 
    This YARA rule is from hell. It represents the worst possible YARA rule 
    and could cause performance issues in any product that allows you to run
-   custom YARA rules. It has not been be designed to reflect a the work of
+   custom YARA rules. It has not been designed to reflect a the work of
    an author with an intentionally malicious mindset, but combines strings 
    and conditions found in real world examples.
    Please use it with care.
