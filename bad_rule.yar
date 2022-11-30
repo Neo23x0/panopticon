@@ -2,7 +2,18 @@ import "pe"
 import "math"
 import "hash"
 
-rule Dantes_YARA_Inferno {
+/* 
+   WARNING: 
+   This YARA rule is from hell. It represents the worst possible YARA rule 
+   and could cause performance issues in any product that allows you to run
+   custom YARA rules. It has not been be designed to reflect a the work of
+   an author with an intentionally malicious mindset, but combines strings 
+   and conditions found in real world examples.
+   Please use it with care.
+   FOR EDUCATIONAL PURPOSES ONLY! ;D
+*/
+
+rule Dantes_YARA_Inferno : WARNING {
      meta:
       author = "Florian Roth"
       description = "This rule is just really, really bad."
@@ -33,3 +44,4 @@ rule Dantes_YARA_Inferno {
       // calculating entropy over large portions of the file
       and math.entropy(0, filesize) > 0
 }
+
