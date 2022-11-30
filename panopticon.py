@@ -314,7 +314,7 @@ if __name__ == '__main__':
         baseline_calib_times = int(args.c)
         baseline_test_times = int(args.m)
 
-        Log.info("Running baseline measure " + str(baseline_calib_times) + " times with " + str(cycles) + " cycles each to get a good average, dropping the worst result")
+        Log.info("Running 1st baseline measurement %s times with %s cycles (dropping the worst run) to get an average duration" % (baseline_test_times, cycles))
         crule_duration_total=0
         crule_duration_max=0
         for x in range(baseline_calib_times):
@@ -331,7 +331,7 @@ if __name__ == '__main__':
         Log.info("Calibrate average baseline duration: " + str(crule_duration))
 
         if baseline_test_times:
-            Log.info("Running baseline measure %s times with %s cycles (dropping the worst) to measure inaccuracy" % (baseline_test_times, cycles))
+            Log.info("Running 2nd baseline measurement %s times with %s cycles (dropping the worst run) to measure inaccuracy level" % (baseline_test_times, cycles))
             min_diff_perc = 9999999999999999
             max_diff_perc = 0
             max_diff_perc_2nd = 0
