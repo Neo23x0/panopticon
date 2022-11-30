@@ -131,3 +131,5 @@ samples
 *.swp
 tmp/
 samples_mix/
+warning_rules.yar
+.vscode/settings.json
