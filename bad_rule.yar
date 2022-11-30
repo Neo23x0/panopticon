@@ -34,7 +34,7 @@ rule Dantes_YARA_Inferno : WARNING {
       $pat1 = "AAAAAAA" // this could cause YARA error 30 (too many matches) on some files
    condition:
       // no header and file size check
-      1 of them
+      all of them
       // loops are bad
       and for any i in (0..pe.number_of_resources-1): (
             // hash calculation on resources uses up many cpu cycles
