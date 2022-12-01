@@ -10,7 +10,7 @@
 #
 # IMPORTANT: Requires plyara
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 import os
 import argparse
@@ -27,71 +27,44 @@ from rich.progress import track
 from rich.progress import Progress
 from rich.console import Console
 import gc
-#import pprint
 
-SAMPLE_SET = ['./samples']
-CALIBRATION_RULE_HUGE = './baseline.yar'
+# Global verbosity level
+VERBOSITY_LEVEL = False
 
-CALIBRATION_RULE_ONE = """
-rule Calibration_Rule {
-    strings:
-        $ = "Fubar, you lose again!" 
-        $ = "A strange game. The only winning move is not to play."
-        $ = "I'm sorry Dave, I'm afraid I can't do that."
-    condition:
-        1 of them
-}
-"""
-
-with open(CALIBRATION_RULE_HUGE, 'r') as f:
-    yr = f.read()
-
-CALIBRATION_RULES = yr
-
-samples_data=[]
-rule_num=0
-
-count = 0
-for s in SAMPLE_SET:
-    if not os.path.exists(s):
-        print("[E] Error: sample directory '%s' doesn't exist" % s)
-    else:
-        for (dirpath, dirnames, filenames) in os.walk(s):
-            for filename in filenames:
-                count += 1
-                sample_file = os.path.join(dirpath, filename)
-                with open(sample_file, 'rb') as fh:
-                    fdata = fh.read()
-                    samples_data.append(fdata)
-
-warnings_list =[]
-warning_rules_file = 'warning_rules.yar'
-warning_rules = open(warning_rules_file, 'w')
-warning_rules.write("// New panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
-
-def log_warning_rich(msg, rule):
+def log_warning_rich(msg, rule, progress, warning_rules_file):
     Log.warning(msg)
     progress.console.print("[red]"+"[WARNING] "+"[/red]" + msg)
     progress.update(task2, advance=1)
-    warnings_list.append(msg)
-    warning_rules.write("// " + msg + "\n")
-    warning_rules.write(rule)
-    warning_rules.write("\n")
 
-def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, rule_name="", alert_diff=0, single_rule=""):
+    with open(warning_rules_file, 'a') as f:        
+        f.write("// " + msg + "\n")
+        f.write(rule)
+        f.write("\n")
+
+    return msg
+
+def measure(yara_rule_string, cycles, progress, samples_data, warning_rules_file, show_score=True, c_duration=0, rule_name="", alert_diff=0, single_rule=""):
     """
     Measure rule performance
+
     :param yara_rule_string: the YARA rule to test
     :param cycles: number of iterations over the sample set
     :param progress: progress indicator
+    :param samples_data: list containing the samples to test against
+    :param warning_rules_file: file to write offending rules to
     :param show_score: show the performance score
     :param c_duration: duration of the calibration run
     :param alert_diff: difference to alert on
     :param single_rule: the separate rule that is going to be tested as string
+
     :return min_duration: minimal duration in seconds
-    :return count: count of samples in the given samples folders
+    :return samples_count: count of samples in the given samples folders
     :return diff_perc: the difference in percent
+    :return warning_message: warning message for an offending rule
     """
+    
+    warning_message = ""
+    
     try:
         y = yara.compile(source=yara_rule_string, externals={
                                     'filename': "",
@@ -101,9 +74,10 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
                                     'md5': "",
                                 })
     except Exception as e:
-        Log.error("Error compiling YARA rule '%s' : %s" % ( rule_name, e ))
-        return 0,0,0
-    #Log.info("Scanning sample set %d times with rule: %s" % (cycles, rule_name ))
+        Log.error(f"Error compiling YARA rule '{rule_name}' : {e}")
+        sys.exit(1)
+        #return 0,0,0
+    
     min_duration=9999999999999999
     max_duration=0
     diff_perc = 0
@@ -113,10 +87,11 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
         # do garbage collection to avoid that it happens during benchmarking
         gc.collect()
 
+        # Get the time before the start of the YARA matches
         start = time.time()
         for sample in samples_data:
             try:
-                matches = y.match(data=sample, externals={
+                y.match(data=sample, externals={
                                     'filename': "",
                                     'filepath': "",
                                     'extension': "",
@@ -128,7 +103,11 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
                 traceback.print_exc()
                 # TODO: sys.exit or not???
                 #sys.exit(1)
+
+        # Get the time after the end of the YARA matches
         end = time.time()
+
+        # The duration the matches operation took is the difference between the start and end
         duration = end - start
 
         if duration < min_duration:
@@ -157,14 +136,152 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
 
     if c_duration and not rule_name == "Baseline":
         if diff_perc > alert_diff:
-            log_warning_rich("Rule \"%s\" slows down a search with %d rules by %0.4f %% (Measured by best of %d runs)" % (rule_name, num_calib_rules, diff_perc , cycles ), single_rule)
+            msg = "Rule \"%s\" slows down a search with %d rules by %0.4f %% (Measured by best of %d runs)" % (rule_name, num_calib_rules, diff_perc , cycles )
+            warning_message = log_warning_rich(msg, single_rule, progress, warning_rules_file)
         else:
             if show_score:
                 progress.console.print("[INFO   ] Rule: \"%s\" - Best of %d - duration: %.4f s (%0.4f s, %0.4f %%)" % (rule_name, cycles, min_duration, (min_duration-c_duration), diff_perc ))
     else:
         progress.console.print("[INFO   ] Rule: \"%s\" - best of %d - duration: %.4f s" % (rule_name, cycles, min_duration))
-    return min_duration, count, diff_perc
+    #return min_duration, count, diff_perc
+    return min_duration, len(samples_data), diff_perc, warning_message
 
+def create_sample_data_list(sample_set):
+    samples_data = []
+    for s in sample_set:
+        if not os.path.exists(s):
+            Log.error(f"Sample directory '{s}' doesn't exist")
+        else:
+            for (subdirs, dirs, files) in os.walk(s):
+                for f in files:
+                    sample_file = os.path.join(subdirs, f)
+                    with open(sample_file, 'rb') as fh:
+                        fdata = fh.read()
+                        samples_data.append(fdata)
+    if not samples_data:
+        Log.error(f"No samples were provided to test against")
+        sys.exit(1)
+    Log.info(f"Creating sample data list...")
+    return samples_data
+
+def init_logging(log_file):
+    logFormatter = logging.Formatter("[%(levelname)-7.7s] %(message)s")
+    logFormatterRemote = logging.Formatter("{0} [%(levelname)-7.7s] %(message)s".format(platform.uname()[1]))
+    Log = logging.getLogger(__name__)
+    fileHandler = logging.FileHandler(log_file)
+    consoleHandler = logging.StreamHandler()
+
+    Log.setLevel(logging.INFO)
+    
+    fileHandler.setFormatter(logFormatter)
+    Log.addHandler(fileHandler)    
+    consoleHandler.setFormatter(logFormatter)
+    Log.addHandler(consoleHandler)
+
+    return logFormatter, logFormatterRemote, Log, fileHandler, consoleHandler
+
+def get_input_files(paramType, path):
+    input_files = []
+    if paramType == "file":
+        for f in path:
+            if not os.path.exists(f):
+                Log.error(f"Input file '{f}' doesn't exist")
+            else:
+                input_files.append(f)
+    elif paramType == "directory":
+        for d in path:
+                if not os.path.exists(d):
+                    Log.error(f"Input directory '{d}' doesn't exist")
+                else:
+                    for subdirs, dirs, files in os.walk(d):
+                        for f in files:
+                            if not os.path.exists(f):
+                                Log.error(f"Input file '{f}' doesn't exist")
+                            elif f.endswith(".yar"):
+                                input_files.append(os.path.join(subdirs, f))
+
+    if input_files:
+        return input_files
+    else:
+        Log.error("No files selected. Incorrect input files or directory")
+        sys.exit(1)
+
+def parse_yara(rules_files_list):
+    rules_list = []
+    plyara_ = plyara.Plyara()
+
+    for rule_file in rules_files_list:
+        
+        Log.info(f"Processing rules from {rule_file} ...")
+
+        with open(rule_file, "r") as rule_content:
+            content = rule_content.read()
+            try:
+                parsed_file = plyara_.parse_string(content)
+                for i in parsed_file:
+                    rules_list.append(i)
+                Log.info(f"Parsed {len(rules_list)} rules from {rule_file}")
+            except Exception as e:
+                Log.error(f"Error parsing YARA rule file: '{rule_file}' - {e}")
+                if VERBOSITY_LEVEL:
+                    traceback.print_exc()
+                sys.exit(1)
+    return rules_list
+
+def get_imports_to_prepend(rules_list):
+    used_imports = []
+    for rule in rules_list:
+        if "imports" in rule:
+            for i in rule["imports"]:
+                if i not in used_imports:
+                    used_imports.append(i)
+    Log.info(f"The following Imports are used by the rules to test (will be prepended to the calibration set): {', '.join(used_imports)}")
+
+    prepend_imports = ""
+    for i in used_imports:
+        prepend_imports += f"import \"{i}\"\n"
+    
+    return prepend_imports
+
+def get_num_calibration_rules(rules):
+    plyara_ = plyara.Plyara()
+    return len(plyara_.parse_string(rules))
+    
+def read_calibration_set(calibration_set):
+    if not os.path.exists(calibration_set):
+        Log.error(f"Calibration ruleset '{calibration_set}' doesn't exist")
+    else:
+        try:
+            with open(CALIBRATION_RULE_HUGE, 'r') as f:
+                calibration_rules = f.read()
+                Log.info(f"Getting content of the calibration ruleset '{calibration_set}'...")
+        except IOError as e:
+            Log.error(f"Cannot read contents of '{calibration_set}'")
+            sys.exit(1)
+
+    return calibration_rules
+
+def print_rich_warning(warnings_list, rules_num, logfile, warning_rules_file):
+    
+    console = Console()
+    
+    console.print("")
+    console.print("-"*112)
+    console.print(f"Done scanning {rules_num} rules.")
+
+    if warnings_list:
+        console.print(f"Check the collected warnings below and look in {logfile} for \"WARNING\".")
+        console.print(f"All offending rules are written to \"{warning_rules_file}\" (hint: useful for rechecking)")
+        for msg in warnings_list:
+            console.print("[red][WARNING] [/red]" + msg)
+    else:
+        console.print("Everything [green]ok[/green], log written to " + logfile)
+
+    Log.info("Ending measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
+
+    with open(warning_rules_file, "a") as f:
+        f.write("// End of panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
+    
 
 if __name__ == '__main__':
 
@@ -175,125 +292,83 @@ if __name__ == '__main__':
     print(" by Florian Roth    /_/ v%s                 " % __version__)
     print(" and Arnim Rupp")
     print(" ")
-    print(" YARA Rule Performance Testing")
+    print(" YARA Rule Performance Testing\n")
 
     # Parse Arguments
     parser = argparse.ArgumentParser(description='YARA RULE PERFORMANCE TESTER')
-    parser.add_argument('-f', action='append', nargs='+', help='Path to input files (YARA rules, separated by space)',
-                        metavar='yara files')
-    parser.add_argument('-d', action='append', nargs='+',
-                        help='Path to input directory (YARA rules folders, separated by space)', metavar='yara files')
+    parser.add_argument('-f', action='append', nargs='+', help='Path to input files (YARA rules, separated by space)', metavar='yara files')
+    parser.add_argument('-d', action='append', nargs='+', help='Path to input directory (YARA rules folders, separated by space)', metavar='yara files')
     parser.add_argument('-l', help='Log file (default: panopticon.log)', metavar='logfile', default=r'panopticon.log')
     parser.add_argument('-i', help='Number of iterations (default: auto)', metavar='iterations')
-    parser.add_argument('-s', help='Number of seconds to spend for each rule\'s measurement', metavar='seconds', default=30)
+    parser.add_argument('-s', help='Number of seconds to spend on each rule\'s measurement', metavar='seconds', default=30)
     parser.add_argument('-c', help='How often to run the iterations on the calibration rule', metavar='baseline_calib_times', default=5)
     parser.add_argument('-m', help='Number of normal runs to measure accuracy of calibration rule', metavar='baseline_test_times', default=5)
     parser.add_argument('-S', help='Slow mode, don\'t skip rule on first quick scan', action='store_true', default=False)
     parser.add_argument('-a', help='Alert bonus in percent: Only alert rules which slow down scans by this much percent (+ measured inaccuracy)', default=3)
+    parser.add_argument('-vv', help='Enable verbose mode for extra logging on the screen', action='store_true', default=False)
     args = parser.parse_args()
+
+    # Init Logging
+    logfile = args.l
+    logFormatter, logFormatterRemote, Log, fileHandler, consoleHandler = init_logging(logfile)
+
+    # Get verbosity level
+    VERBOSITY_LEVEL = args.vv
+    
+    # Init Warning list and file - This list and file will contain offending the rules and warning messages
+    warning_rules_file = 'warning_rules.yar'
+    warnings_list =[]
+    with open(warning_rules_file, 'w') as f:
+        f.write("// New panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
 
     # don't to fast mode during calibration, it's set later by param
     slow_mode = True
     alert_bonus = int(args.a)
 
-    # Logging
-    logFormatter = logging.Formatter("[%(levelname)-7.7s] %(message)s")
-    logFormatterRemote = logging.Formatter("{0} [%(levelname)-7.7s] %(message)s".format(platform.uname()[1]))
-    Log = logging.getLogger(__name__)
-    Log.setLevel(logging.INFO)
-    # File Handler
-    fileHandler = logging.FileHandler(args.l)
-    fileHandler.setFormatter(logFormatter)
-    Log.addHandler(fileHandler)
-    # Console Handler
-    consoleHandler = logging.StreamHandler()
-    consoleHandler.setFormatter(logFormatter)
-    Log.addHandler(consoleHandler)
+    # Read calibration ruleset
+    CALIBRATION_RULE_HUGE = './baseline_50.yar'
+    CALIBRATION_RULES = read_calibration_set(CALIBRATION_RULE_HUGE)
 
-    Log.info("Starting measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
-
-    # Check the YARA rule input files and directories
-    input_files = []
-    if args.f or args.d:
-        # File list
-        if args.f:
-            for f in args.f[0]:
-                if not os.path.exists(f):
-                    Log.error("[E] Error: input file '%s' doesn't exist" % f)
-                    sys.exit(1)
-                else:
-                    input_files.append(f)
-        # Directory list
-        if args.d:
-            for d in args.d[0]:
-                if not os.path.exists(d):
-                    Log.error("[E] Error: input directory '%s' doesn't exist" % d)
-                    sys.exit(1)
-                else:
-                    for f in (os.listdir(d)):
-                        if ".yar" in f:
-                            input_files.append(os.path.join(d, f))
-
-    # Loop over input files
-    rules_list = []
-    rules_all = ""
-    for f in input_files:
-        # Parse YARA rules to Dictionary
-        if not os.path.exists(f):
-            Log.error("Cannot find input file '%s'" % f)
-            sys.exit(1)
-        try:
-            Log.info("Processing rules from %s ..." % f)
-            p = plyara.Plyara()
-            file_data = ""
-            # Read file
-            with open(f, 'r') as fh:
-                file_data = fh.read()
-            # Skip files without rule
-            if 'rule' not in file_data:
-                continue
-            rules_all += file_data
-        except Exception as e:
-            Log.error("Can't process YARA rule file '%s'" % f)
-            traceback.print_exc()
-
-    # Now parse the YARA rules
-    try:
-        rules_list += p.parse_string(file_data)
-        Log.info("Parsed %d rules from %s" % (len(rules_list), f))
-        # input_file_names.append(os.path.basename(f))
-    except Exception as e:
-        Log.error("Error parsing YARA rule file '%s'" % f)
-        traceback.print_exc()
+    # Set default samples folder and get the contents
+    SAMPLE_SET = ['./samples']
+    samples_data = create_sample_data_list(SAMPLE_SET)
+    
+    # Get the YARA rule input files and directories
+    if args.f:
+        input_files = get_input_files("file", args.f[0])
+    elif args.d:
+        input_files = get_input_files("directory", args.d[0])
+    else:
+        Log.error("No input files or directory provided")
         sys.exit(1)
 
-    # Check the imports used by the rules to be tested
-    used_imports = []
-    for rule in rules_list:
-        if "imports" in rule:
-            for i in rule["imports"]:
-                if i not in used_imports:
-                    used_imports.append(i)
-    Log.info("Imports used by the rules to test (will be prepended to the calibration set): %s" % ' '.join(used_imports))
+    # Parse the YARA rules and get the number of YARA rules
+    rules_list = parse_yara(input_files)
+    rules_num=len(rules_list)
 
-    # Preparing the calibration rules
-    p = plyara.Plyara()
-    # Appending the imports used in the test rules
-    prepend_imports = ""
-    for i in used_imports:
-        prepend_imports += 'import "%s"' % i
-    calibration_rule_set = prepend_imports + CALIBRATION_RULES
-    # Parse the calibration rule set    
-    calibration_rules = p.parse_string(calibration_rule_set)
-    num_calib_rules = len(calibration_rules)
-    Log.info("Number of calibration rules: " + str(num_calib_rules))
+    # Check the imports used by the rules to be tested (if there are any) and prepend them to the "CALIBRATION_RULES" set
+    imports_to_prepend = get_imports_to_prepend(rules_list)
+    calibration_rule_set = imports_to_prepend + CALIBRATION_RULES
 
-    # Now start the measurements 
+    # Get number Of Calibration Rules for stats purposes
+    num_calib_rules = get_num_calibration_rules(calibration_rule_set)
+    Log.info(f"Number of calibration rules: {num_calib_rules}")
+    
+    ######################################################
+    ########## Now start the measurements ################
+    ######################################################
+    
+    Log.info("Starting measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
+
     with Progress(transient=True) as progress:
         # Calibration
+        calib_duration, samples_count, diff_perc, warning_message = measure(calibration_rule_set, 1, progress, samples_data, warning_rules_file, show_score=False, rule_name='Baseline')
+
+        if warning_message:
+            warnings_list.append(warning_message)
+        
         if not args.i:
-            # Evaluate an optimal amount of cycles if nothing has been set manually
-            calib_duration, sample_count, diff_perc = measure(calibration_rule_set, 1, progress, show_score=False, rule_name='Baseline')
+            Log.info(f"Number of iterations is not set. Evaluating the optimal amount of cycles...")
             # One measurement should take 5 seconds
             auto_cycles = math.ceil(int(args.s) / calib_duration)
             cycles = auto_cycles
@@ -301,24 +376,32 @@ if __name__ == '__main__':
             # When cycle setting(option -i), occur error "sample_count not setting error"
             # set measure function same, error fix!
             # Evaluate an optimal amount of cycles if nothing has been set manually
-            calib_duration, sample_count, diff_perc = measure(calibration_rule_set, 1, progress, show_score=False, rule_name='Baseline')
             cycles = int(args.i)
 
         # Startup
-        Log.info("Auto-evaluation calculated that the defined %d seconds per rule can be accomplished by %d cycles per "
-                 "rule over the given sample set of %d samples" % (int(args.s), cycles, sample_count))
-        Log.info("Running %d cycles over the sample set" % cycles)
+        Log.info(f"Auto-evaluation calculated that the defined {args.s} seconds per rule can be accomplished by {cycles} cycles per rule over the given sample set of {samples_count} samples")
+        Log.info(f"Running {cycles} cycles over the sample set")
         Log.info("Now the benchmarking begins ... (try not cause any load on the system during benchmarking)")
 
-        # Calibration Score
-        baseline_calib_times = int(args.c)
-        baseline_test_times = int(args.m)
+        ######################################################
+        ############# First Calibration ######################
+        ######################################################
 
-        Log.info("Running 1st baseline measurement %s times with %s cycles (dropping the worst run) to get an average duration" % (baseline_test_times, cycles))
+        # Calibration Score
+        baseline_calib_times = int(args.c)  # How often to run the iterations on the calibration rule (Default=5)
+        baseline_test_times = int(args.m)   # Number of normal runs to measure accuracy of calibration rule (Default=5)
+
+        Log.info(f"Running 1st baseline measurement {baseline_test_times} times with {cycles} cycles (dropping the worst run) to get an average duration")
+
         crule_duration_total=0
         crule_duration_max=0
+
         for x in range(baseline_calib_times):
-            crule_duration_tmp, count, diff_perc = measure(calibration_rule_set, cycles, progress, show_score=True, rule_name='Baseline')
+            crule_duration_tmp, samples_count, diff_perc, warning_message = measure(calibration_rule_set, cycles, progress, samples_data, warning_rules_file, show_score=True, rule_name='Baseline')
+
+            if warning_message:
+                warnings_list.append(warning_message)
+
             crule_duration_total += crule_duration_tmp
             if crule_duration_tmp >  crule_duration_max:
                 crule_duration_max = crule_duration_tmp
@@ -328,7 +411,12 @@ if __name__ == '__main__':
             crule_duration= ( crule_duration_total - crule_duration_max ) / ( baseline_calib_times -1 )
         else:
             crule_duration= crule_duration_total
-        Log.info("Calibrate average baseline duration: " + str(crule_duration))
+        Log.info(f"Calibrate average baseline duration: {crule_duration}")
+
+
+        ######################################################
+        ############ Second Calibration ######################
+        ######################################################
 
         if baseline_test_times:
             Log.info("Running 2nd baseline measurement %s times with %s cycles (dropping the worst run) to measure inaccuracy level" % (baseline_test_times, cycles))
@@ -336,7 +424,11 @@ if __name__ == '__main__':
             max_diff_perc = 0
             max_diff_perc_2nd = 0
             for x in range(baseline_test_times):
-                crule_duration_tmp, count, diff_perc = measure(calibration_rule_set, cycles, progress, c_duration=crule_duration, show_score=True, rule_name='Baseline')
+                crule_duration_tmp, samples_count, diff_perc, warning_message = measure(calibration_rule_set, cycles, progress, samples_data, warning_rules_file, c_duration=crule_duration, show_score=True, rule_name='Baseline')
+
+                if warning_message:
+                    warnings_list.append(warning_message)
+
                 if crule_duration_tmp < crule_duration:
                     crule_duration_new = crule_duration_tmp
                 if diff_perc < min_diff_perc:
@@ -363,45 +455,28 @@ if __name__ == '__main__':
         Log.info(msg)
         progress.console.print("[INFO   ][green] " + msg)
         
-        rule_num=len(rules_list)
-        task1 = progress.add_task("[green]Processing rules...", total=rule_num)
-        if rule_num > 100:
+        task1 = progress.add_task("[green]Processing rules...", total=rules_num)
+        if rules_num > 100:
             warning_bar_num = 100
         else:
-            warning_bar_num = rule_num
+            warning_bar_num = rules_num
         task2 = progress.add_task("[red]Warnings", total=warning_bar_num)
 
-        # first test all at once (this might easily fail on multiple files with duplicate rulenames)
-        #measure_rule = CALIBRATION_RULES + rules_all
-        #rule_name = "All " + str(len(rules_list)) + " rules from all input files"
-        #measure(measure_rule, cycles, progress, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff)
+        ######################################################
+        ############# Scan Input Files #######################
+        ######################################################
 
-        # Scan files
         for r in rules_list:
             yara_rule_string = plutils.rebuild_yara_rule(r)
             rule_name = r['rule_name']
             if len(yara_rule_string) > 20000:
-                log_warning_rich("Big rule: " + rule_name + " has " + str(len(yara_rule_string)) + " bytes", yara_rule_string)
+                warning_message = log_warning_rich("Big rule: " + rule_name + " has " + str(len(yara_rule_string)) + " bytes", yara_rule_string)
+                if warning_message:
+                    warnings_list.append(warning_message)
 
             measure_rule = calibration_rule_set + yara_rule_string
 
-            measure(measure_rule, cycles, progress, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff, single_rule=yara_rule_string)
+            measure(measure_rule, cycles, progress, samples_data, warning_rules_file, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff, single_rule=yara_rule_string)
             progress.update(task1, advance=1)
 
-    # rich console
-    console = Console()
-    console.print("")
-    console.print("----------------------------------------------------------------------------------------------------------------")
-    console.print("Done scanning " + str(rule_num) + " rules.")
-    if warnings_list:
-        console.print("Check the collected warnings below are look in " + args.l + " for \"WARNING\".")
-        console.print("All offending rules written to \"" + warning_rules_file + "\" (hint: useful for rechecking)")
-        for msg in warnings_list:
-            console.print("[red]"+"[WARNING] "+"[/red]" + msg)
-    else:
-        console.print("Everything [green]ok[/green], log written to " + args.l)
-
-    # reenable console logging because this should be on screen and in logfile
-    Log.addHandler(consoleHandler)
-    Log.info("Ending measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
-    warning_rules.write("// End of panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
+    print_rich_warning(warnings_list, rules_num, logfile, warning_rules_file)
