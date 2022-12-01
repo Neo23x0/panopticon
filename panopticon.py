@@ -36,7 +36,7 @@ def log_warning_rich(msg, rule, progress, warning_rules_file):
     progress.console.print(f"[red]"+"[WARNING] "+"[/red]{msg}")
     progress.update(task2, advance=1)
 
-    with open(warning_rules_file, 'w') as f:        
+    with open(warning_rules_file, 'a') as f:        
         f.write("// " + msg + "\n")
         f.write(rule)
         f.write("\n")
@@ -279,7 +279,7 @@ def print_rich_warning(warnings_list, rules_num, logfile, warning_rules_file):
 
     Log.info("Ending measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
 
-    with open(warning_rules_file, "w") as f:
+    with open(warning_rules_file, "a") as f:
         f.write("// End of panopticon run at " + time.strftime("%Y-%m-%d %H:%M:%S") + '\n\n' )
     
 
