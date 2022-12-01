@@ -27,26 +27,9 @@ from rich.progress import track
 from rich.progress import Progress
 from rich.console import Console
 import gc
-#import pprint
 
-SAMPLE_SET = ['./samples']
-CALIBRATION_RULE_HUGE = './baseline_50.yar'
-
-CALIBRATION_RULE_ONE = """
-rule Calibration_Rule {
-    strings:
-        $ = "Fubar, you lose again!" 
-        $ = "A strange game. The only winning move is not to play."
-        $ = "I'm sorry Dave, I'm afraid I can't do that."
-    condition:
-        1 of them
-}
-"""
-
-with open(CALIBRATION_RULE_HUGE, 'r') as f:
-    yr = f.read()
-
-CALIBRATION_RULES = yr
+# Global verbosity level
+VERBOSITY_LEVEL = False
 
 warnings_list =[]
 warning_rules_file = 'warning_rules.yar'
@@ -62,18 +45,19 @@ def log_warning_rich(msg, rule):
     warning_rules.write(rule)
     warning_rules.write("\n")
 
-def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, rule_name="", alert_diff=0, single_rule=""):
+def measure(yara_rule_string, cycles, progress, samples_data, show_score=True, c_duration=0, rule_name="", alert_diff=0, single_rule=""):
     """
     Measure rule performance
     :param yara_rule_string: the YARA rule to test
     :param cycles: number of iterations over the sample set
     :param progress: progress indicator
+    :param samples_data: list containing the samples to test against
     :param show_score: show the performance score
     :param c_duration: duration of the calibration run
     :param alert_diff: difference to alert on
     :param single_rule: the separate rule that is going to be tested as string
     :return min_duration: minimal duration in seconds
-    :return count: count of samples in the given samples folders
+    :return samples_count: count of samples in the given samples folders
     :return diff_perc: the difference in percent
     """
     try:
@@ -150,7 +134,7 @@ def measure(yara_rule_string, cycles, progress, show_score=True, c_duration=0, r
     else:
         progress.console.print("[INFO   ] Rule: \"%s\" - best of %d - duration: %.4f s" % (rule_name, cycles, min_duration))
     #return min_duration, count, diff_perc
-    return min_duration, diff_perc
+    return min_duration, len(samples_data), diff_perc
 
 def create_sample_data_list(sample_set):
     samples_data = []
@@ -165,8 +149,10 @@ def create_sample_data_list(sample_set):
                         fdata = fh.read()
                         samples_data.append(fdata)
     if not samples_data:
-        Log.warning(f"No samples were provided to test against")
-    return samples_data, len(samples_data)
+        Log.error(f"No samples were provided to test against")
+        sys.exit(1)
+    Log.info(f"Creating sample data list...")
+    return samples_data
 
 def init_logging(log_file):
     logFormatter = logging.Formatter("[%(levelname)-7.7s] %(message)s")
@@ -210,7 +196,7 @@ def get_input_files(paramType, path):
         Log.error("No files selected. Incorrect input files or directory")
         sys.exit(1)
 
-def parse_yara(rules_files_list, verbosity):
+def parse_yara(rules_files_list):
     rules_list = []
     plyara_ = plyara.Plyara()
 
@@ -227,7 +213,7 @@ def parse_yara(rules_files_list, verbosity):
                 Log.info(f"Parsed {len(rules_list)} rules from {rule_file}")
             except Exception as e:
                 Log.error(f"Error parsing YARA rule file: '{rule_file}' - {e}")
-                if verbosity:
+                if VERBOSITY_LEVEL:
                     traceback.print_exc()
                 sys.exit(1)
     return rules_list
@@ -251,6 +237,19 @@ def get_num_calibration_rules(rules):
     plyara_ = plyara.Plyara()
     return len(plyara_.parse_string(rules))
     
+def read_calibration_set(calibration_set):
+    if not os.path.exists(calibration_set):
+        Log.error(f"Calibration ruleset '{calibration_set}' doesn't exist")
+    else:
+        try:
+            with open(CALIBRATION_RULE_HUGE, 'r') as f:
+                calibration_rules = f.read()
+                Log.info(f"Getting content of the calibration ruleset '{calibration_set}'...")
+        except IOError as e:
+            Log.error(f"Cannot read contents of '{calibration_set}'")
+            sys.exit(1)
+
+    return calibration_rules
 
 if __name__ == '__main__':
 
@@ -269,7 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', action='append', nargs='+', help='Path to input directory (YARA rules folders, separated by space)', metavar='yara files')
     parser.add_argument('-l', help='Log file (default: panopticon.log)', metavar='logfile', default=r'panopticon.log')
     parser.add_argument('-i', help='Number of iterations (default: auto)', metavar='iterations')
-    parser.add_argument('-s', help='Number of seconds to spend for each rule\'s measurement', metavar='seconds', default=30)
+    parser.add_argument('-s', help='Number of seconds to spend on each rule\'s measurement', metavar='seconds', default=30)
     parser.add_argument('-c', help='How often to run the iterations on the calibration rule', metavar='baseline_calib_times', default=5)
     parser.add_argument('-m', help='Number of normal runs to measure accuracy of calibration rule', metavar='baseline_test_times', default=5)
     parser.add_argument('-S', help='Slow mode, don\'t skip rule on first quick scan', action='store_true', default=False)
@@ -277,18 +276,23 @@ if __name__ == '__main__':
     parser.add_argument('-vv', help='Enable verbose mode for extra logging on the screen', action='store_true', default=False)
     args = parser.parse_args()
 
+    # Init Logging
+    logFormatter, logFormatterRemote, Log, fileHandler, consoleHandler = init_logging(args.l)
+
     # Get verbosity level
-    verbosity_level = args.vv
+    VERBOSITY_LEVEL = args.vv
 
     # don't to fast mode during calibration, it's set later by param
     slow_mode = True
     alert_bonus = int(args.a)
 
-    # Init Logging
-    logFormatter, logFormatterRemote, Log, fileHandler, consoleHandler = init_logging(args.l)
+    # Read calibration ruleset
+    CALIBRATION_RULE_HUGE = './baseline_50.yar'
+    CALIBRATION_RULES = read_calibration_set(CALIBRATION_RULE_HUGE)
 
-    # Get contents of the samples in a list and the number of samples
-    samples_data, samples_count = create_sample_data_list(SAMPLE_SET)
+    # Set default samples folder and get the contents
+    SAMPLE_SET = ['./samples']
+    samples_data = create_sample_data_list(SAMPLE_SET)
     
     # Get the YARA rule input files and directories
     if args.f:
@@ -299,28 +303,29 @@ if __name__ == '__main__':
         Log.error("No input files or directory provided")
         sys.exit(1)
 
-    # Parse the YARA rules
-    rules_list = parse_yara(input_files, verbosity_level)
-    # Number of YARA rules provided
+    # Parse the YARA rules and get the number of YARA rules
+    rules_list = parse_yara(input_files)
     rules_num=len(rules_list)
 
     # Check the imports used by the rules to be tested (if there are any) and prepend them to the "CALIBRATION_RULES" set
     imports_to_prepend = get_imports_to_prepend(rules_list)
-    # Appending the imports used in the test rules
     calibration_rule_set = imports_to_prepend + CALIBRATION_RULES
 
     # Get number Of Calibration Rules for stats purposes
     num_calib_rules = get_num_calibration_rules(calibration_rule_set)
     Log.info(f"Number of calibration rules: {num_calib_rules}")
 
-    # Now start the measurements 
+    ######################################################
+    ########## Now start the measurements ################
+    ######################################################
+    
     Log.info("Starting measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
     with Progress(transient=True) as progress:
         # Calibration
-        calib_duration, diff_perc = measure(calibration_rule_set, 1, progress, show_score=False, rule_name='Baseline')
+        calib_duration, samples_count, diff_perc = measure(calibration_rule_set, 1, progress, samples_data, show_score=False, rule_name='Baseline')
         
         if not args.i:
-            # Evaluate an optimal amount of cycles if nothing has been set manually
+            Log.info(f"Number of iterations is not set. Evaluating the optimal amount of cycles...")
             # One measurement should take 5 seconds
             auto_cycles = math.ceil(int(args.s) / calib_duration)
             cycles = auto_cycles
@@ -336,8 +341,8 @@ if __name__ == '__main__':
         Log.info("Now the benchmarking begins ... (try not cause any load on the system during benchmarking)")
 
         # Calibration Score
-        baseline_calib_times = int(args.c)
-        baseline_test_times = int(args.m)
+        baseline_calib_times = int(args.c)  # How often to run the iterations on the calibration rule (Default=5)
+        baseline_test_times = int(args.m)   # Number of normal runs to measure accuracy of calibration rule (Default=5)
 
         Log.info(f"Running 1st baseline measurement {baseline_test_times} times with {cycles} cycles (dropping the worst run) to get an average duration")
 
@@ -345,7 +350,7 @@ if __name__ == '__main__':
         crule_duration_max=0
 
         for x in range(baseline_calib_times):
-            crule_duration_tmp, diff_perc = measure(calibration_rule_set, cycles, progress, show_score=True, rule_name='Baseline')
+            crule_duration_tmp, samples_count, diff_perc = measure(calibration_rule_set, cycles, progress, samples_data, show_score=True, rule_name='Baseline')
             crule_duration_total += crule_duration_tmp
             if crule_duration_tmp >  crule_duration_max:
                 crule_duration_max = crule_duration_tmp
@@ -363,7 +368,7 @@ if __name__ == '__main__':
             max_diff_perc = 0
             max_diff_perc_2nd = 0
             for x in range(baseline_test_times):
-                crule_duration_tmp, diff_perc = measure(calibration_rule_set, cycles, progress, c_duration=crule_duration, show_score=True, rule_name='Baseline')
+                crule_duration_tmp, samples_count, diff_perc = measure(calibration_rule_set, cycles, progress, samples_data, c_duration=crule_duration, show_score=True, rule_name='Baseline')
                 if crule_duration_tmp < crule_duration:
                     crule_duration_new = crule_duration_tmp
                 if diff_perc < min_diff_perc:
@@ -412,7 +417,7 @@ if __name__ == '__main__':
 
             measure_rule = calibration_rule_set + yara_rule_string
 
-            measure(measure_rule, cycles, progress, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff, single_rule=yara_rule_string)
+            measure(measure_rule, cycles, progress, samples_data, show_score=True, c_duration=crule_duration, rule_name=rule_name, alert_diff=alert_diff, single_rule=yara_rule_string)
             progress.update(task1, advance=1)
 
     # rich console
