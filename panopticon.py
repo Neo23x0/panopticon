@@ -362,7 +362,10 @@ if __name__ == '__main__':
     Log.info("Starting measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
     with Progress(transient=True) as progress:
         # Calibration
-        calib_duration, samples_count, diff_perc = measure(calibration_rule_set, 1, progress, samples_data, warning_rules_file, show_score=False, rule_name='Baseline')
+        calib_duration, samples_count, diff_perc, warning_message = measure(calibration_rule_set, 1, progress, samples_data, warning_rules_file, show_score=False, rule_name='Baseline')
+
+        if not warning_message:
+            warnings_list.append(warning_message)
         
         if not args.i:
             Log.info(f"Number of iterations is not set. Evaluating the optimal amount of cycles...")
@@ -390,7 +393,11 @@ if __name__ == '__main__':
         crule_duration_max=0
 
         for x in range(baseline_calib_times):
-            crule_duration_tmp, samples_count, diff_perc = measure(calibration_rule_set, cycles, progress, samples_data, warning_rules_file, show_score=True, rule_name='Baseline')
+            crule_duration_tmp, samples_count, diff_perc, warning_message = measure(calibration_rule_set, cycles, progress, samples_data, warning_rules_file, show_score=True, rule_name='Baseline')
+
+            if not warning_message:
+                warnings_list.append(warning_message)
+
             crule_duration_total += crule_duration_tmp
             if crule_duration_tmp >  crule_duration_max:
                 crule_duration_max = crule_duration_tmp
@@ -408,7 +415,11 @@ if __name__ == '__main__':
             max_diff_perc = 0
             max_diff_perc_2nd = 0
             for x in range(baseline_test_times):
-                crule_duration_tmp, samples_count, diff_perc = measure(calibration_rule_set, cycles, progress, samples_data, warning_rules_file, c_duration=crule_duration, show_score=True, rule_name='Baseline')
+                crule_duration_tmp, samples_count, diff_perc, warning_message = measure(calibration_rule_set, cycles, progress, samples_data, warning_rules_file, c_duration=crule_duration, show_score=True, rule_name='Baseline')
+
+                if not warning_message:
+                    warnings_list.append(warning_message)
+
                 if crule_duration_tmp < crule_duration:
                     crule_duration_new = crule_duration_tmp
                 if diff_perc < min_diff_perc:
@@ -452,7 +463,7 @@ if __name__ == '__main__':
             rule_name = r['rule_name']
             if len(yara_rule_string) > 20000:
                 warning_message = log_warning_rich("Big rule: " + rule_name + " has " + str(len(yara_rule_string)) + " bytes", yara_rule_string)
-                warnings_list(warning_message)
+                warnings_list.append(warning_message)
 
             measure_rule = calibration_rule_set + yara_rule_string
 
