@@ -36,8 +36,7 @@ def log_warning_rich(msg, rule, progress, warning_rules_file):
     progress.console.print(f"[red]"+"[WARNING] "+"[/red]{msg}")
     progress.update(task2, advance=1)
 
-    with open(warning_rules_file, 'w') as f:
-        f.append(msg)
+    with open(warning_rules_file, 'w') as f:        
         f.write("// " + msg + "\n")
         f.write(rule)
         f.write("\n")
@@ -360,6 +359,7 @@ if __name__ == '__main__':
     ######################################################
     
     Log.info("Starting measurement at: " + time.strftime("%Y-%m-%d %H:%M:%S") )
+
     with Progress(transient=True) as progress:
         # Calibration
         calib_duration, samples_count, diff_perc, warning_message = measure(calibration_rule_set, 1, progress, samples_data, warning_rules_file, show_score=False, rule_name='Baseline')
@@ -382,6 +382,10 @@ if __name__ == '__main__':
         Log.info(f"Auto-evaluation calculated that the defined {args.s} seconds per rule can be accomplished by {cycles} cycles per rule over the given sample set of {samples_count} samples")
         Log.info(f"Running {cycles} cycles over the sample set")
         Log.info("Now the benchmarking begins ... (try not cause any load on the system during benchmarking)")
+
+        ######################################################
+        ############# First Calibration ######################
+        ######################################################
 
         # Calibration Score
         baseline_calib_times = int(args.c)  # How often to run the iterations on the calibration rule (Default=5)
@@ -408,6 +412,11 @@ if __name__ == '__main__':
         else:
             crule_duration= crule_duration_total
         Log.info(f"Calibrate average baseline duration: {crule_duration}")
+
+
+        ######################################################
+        ############ Second Calibration ######################
+        ######################################################
 
         if baseline_test_times:
             Log.info("Running 2nd baseline measurement %s times with %s cycles (dropping the worst run) to measure inaccuracy level" % (baseline_test_times, cycles))
@@ -446,7 +455,6 @@ if __name__ == '__main__':
         Log.info(msg)
         progress.console.print("[INFO   ][green] " + msg)
         
-        
         task1 = progress.add_task("[green]Processing rules...", total=rules_num)
         if rules_num > 100:
             warning_bar_num = 100
@@ -455,7 +463,7 @@ if __name__ == '__main__':
         task2 = progress.add_task("[red]Warnings", total=warning_bar_num)
 
         ######################################################
-        ############# Scan Input Files ######################
+        ############# Scan Input Files #######################
         ######################################################
 
         for r in rules_list:
