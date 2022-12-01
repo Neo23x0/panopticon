@@ -33,7 +33,7 @@ VERBOSITY_LEVEL = False
 
 def log_warning_rich(msg, rule, progress, warning_rules_file):
     Log.warning(msg)
-    progress.console.print(f"[red]"+"[WARNING] "+"[/red]{msg}")
+    progress.console.print("[red]"+"[WARNING] "+"[/red]" + msg)
     progress.update(task2, advance=1)
 
     with open(warning_rules_file, 'a') as f:        
