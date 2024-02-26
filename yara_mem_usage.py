@@ -73,6 +73,8 @@ if __name__ == '__main__':
                                             'extension': "",
                                             'filetype': "",
                                             'md5': "",
+                                            'filemode': 0,
+                                            'owner': "",
                                         })
 
     if debug: print("Compile rules to evaluate")
